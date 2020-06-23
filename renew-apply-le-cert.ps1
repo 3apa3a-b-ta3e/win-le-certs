@@ -64,7 +64,7 @@ try {
  } catch {
 	WriteLog $_.Exception.Message
 	Send-EmailWithSendGrid -SendSubject "Renew failed for $CurrentCertName" -SendBody "$_.Exception.Message"
-	Exit
+	Return
 }
 
 # Continue on success, import modules
