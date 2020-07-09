@@ -75,12 +75,33 @@ Import-Module WebAdministration
 # Try to apply new certificate to IIS, RDP and RDGW
 
 try {
+	# Apply to all IIS sites with https enabled
 	(Get-WebBinding -Protocol "https").AddSslCertificate($NewCertThumbprint, "My")
+	
+	# Apply to Remote Desktop Gateway (RDP over HTTPS)
 	Set-Item -Path RDS:\GatewayServer\SSLCertificate\Thumbprint -Value $NewCertThumbprint -ErrorAction Stop
-
+	
+	# Apply to regular RDP (default binding)
 	$WmiPath = (Get-WmiObject -class "Win32_TSGeneralSetting" -Namespace root\cimv2\terminalservices -Filter "TerminalName='RDP-tcp'").__path
 	Set-WmiInstance -Path $WmiPath -argument @{SSLCertificateSHA1Hash=$NewCertThumbprint} -ErrorAction Stop
+	
+	# Apply to Web Management service and WebDeploy as well
+	$webManagementService = Get-Service WMSVC -ErrorAction Stop
+	if ($webManagementService.Status -eq "Running") {
+		Stop-Service WMSVC -ErrorAction Stop
+	}
+	
+	$webManagementPort = (Get-ItemProperty HKLM:\SOFTWARE\Microsoft\WebManagement\Server -Name "Port").Port
+	$webManagementIP = (Get-ChildItem IIS:\SslBindings | Where-Object Port -eq $webManagementPort).IPAddress.IPAddressToString
+	Get-ChildItem IIS:\SslBindings | Where-Object Port -eq $webManagementPort | Where-Object IPAddress -eq $webManagementIP | Remove-Item -ErrorAction Stop
+	Get-Item -Path Cert:\LocalMachine\My\$NewCertThumbprint | New-Item -Path IIS:\SslBindings\$webManagementIP!$webManagementPort -ErrorAction Stop
 
+        $bytes = for($i = 0; $i -lt $NewCertThumbprint.Length; $i += 2) { [convert]::ToByte($NewCertThumbprint.SubString($i, 2), 16) }
+	Set-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\WebManagement\Server -Name SslCertificateHash -Value $bytes -ErrorAction Stop
+
+	Start-Service WMSVC -ErrorAction Stop	
+	
+	# Write log and send email on success
 	WriteLog "Renew and apply successful for $CurrentCertName"
 	Send-EmailWithSendGrid -SendSubject "Renew and apply successful for $CurrentCertName" -SendBody "Nothing to fix, everything is fine."
  } catch {
