@@ -89,7 +89,7 @@ try {
 		Stop-Service WMSVC -ErrorAction Stop
 	}
 	
-	$webManagementPort = (Get-ItemProperty HKLM:\SOFTWARE\Microsoft\WebManagement\Server -Name "Port").Port
+	$webManagementPort = (Get-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\WebManagement\Server -Name "Port").Port
 	$webManagementIP = (Get-ChildItem -Path IIS:\SslBindings | Where-Object Port -eq $webManagementPort).IPAddress.IPAddressToString
 	Get-ChildItem -Path IIS:\SslBindings | Where-Object Port -eq $webManagementPort | Where-Object IPAddress -eq $webManagementIP | Remove-Item -ErrorAction Stop
 	Get-Item -Path Cert:\LocalMachine\My\$NewCertThumbprint | New-Item -Path IIS:\SslBindings\$webManagementIP!$webManagementPort -ErrorAction Stop
