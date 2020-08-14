@@ -1,3 +1,8 @@
+#
+# This script will renew any Let`sEncrypt certificate issued with help of Posh-ACME module (yes, this module must be installed).
+#
+
+# Set required variables
 $env:POSHACME_HOME = 'C:\Posh-ACME'
 $SendFrom = "server@example.com"
 $SendTo = "admin@example.com"
@@ -6,11 +11,9 @@ $LogFile = "$env:POSHACME_HOME\RenewLog.txt"
 $CurrentCertName = (Get-PACertificate).AllSANs|select-object -first 1
 
 # Re-import Posh-ACME module with correct HOME settings
-
 Import-Module Posh-ACME -Force
 
 # Only continue if less than 29 days to cerificate expiration
-
 if ((Get-Date).AddDays(29).Date -gt (Get-PACertificate).NotAfter.Date) {
 	Write "Time to renew"
  } else {
@@ -19,7 +22,6 @@ if ((Get-Date).AddDays(29).Date -gt (Get-PACertificate).NotAfter.Date) {
 }
 
 # Define how to write log
-
 function WriteLog {
 	Param (
 	[Parameter(Mandatory=$true)]
@@ -30,7 +32,6 @@ function WriteLog {
 }
 
 # Define how to send message
-
 function Send-EmailWithSendGrid {
 	Param (
 	[Parameter(Mandatory=$true)]
@@ -56,7 +57,6 @@ function Send-EmailWithSendGrid {
 }
 
 # Try to renew cert and log/send the result
-
 try {
 	Submit-Renewal -WarningAction Stop -ErrorAction Stop -Verbose
 	$NewCertThumbprint = (Get-PACertificate).Thumbprint
@@ -68,12 +68,10 @@ try {
 }
 
 # Continue on success, import modules
-
 Import-Module RemoteDesktopServices
 Import-Module WebAdministration
 
 # Try to apply new certificate to IIS, RDP and RDGW
-
 try {
 	# Apply to all IIS sites with https enabled
 	(Get-WebBinding -Protocol "https").AddSslCertificate($NewCertThumbprint, "My")
@@ -92,8 +90,8 @@ try {
 	}
 	
 	$webManagementPort = (Get-ItemProperty HKLM:\SOFTWARE\Microsoft\WebManagement\Server -Name "Port").Port
-	$webManagementIP = (Get-ChildItem IIS:\SslBindings | Where-Object Port -eq $webManagementPort).IPAddress.IPAddressToString
-	Get-ChildItem IIS:\SslBindings | Where-Object Port -eq $webManagementPort | Where-Object IPAddress -eq $webManagementIP | Remove-Item -ErrorAction Stop
+	$webManagementIP = (Get-ChildItem -Path IIS:\SslBindings | Where-Object Port -eq $webManagementPort).IPAddress.IPAddressToString
+	Get-ChildItem -Path IIS:\SslBindings | Where-Object Port -eq $webManagementPort | Where-Object IPAddress -eq $webManagementIP | Remove-Item -ErrorAction Stop
 	Get-Item -Path Cert:\LocalMachine\My\$NewCertThumbprint | New-Item -Path IIS:\SslBindings\$webManagementIP!$webManagementPort -ErrorAction Stop
 
         $bytes = for($i = 0; $i -lt $NewCertThumbprint.Length; $i += 2) { [convert]::ToByte($NewCertThumbprint.SubString($i, 2), 16) }
@@ -110,8 +108,7 @@ try {
 }
 
 # Cleanup expired certificates
-
-$AllMyCerts = Get-ChildItem "Cert:\LocalMachine\My" -Recurse
+$AllMyCerts = Get-ChildItem -Path Cert:\LocalMachine\My -Recurse
 	Foreach($Cert in $AllMyCerts) {
 	if($Cert.NotAfter -lt (Get-Date)) { $Cert | Remove-Item }
  }
